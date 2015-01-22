@@ -275,9 +275,8 @@ public class WebSService extends Service {
             Log.d(TAG + "::WSonOpen", "RestGroup::" + connectionGroups.size());
         }
 
-        @Override
-        public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-
+        void removeWebSocketFromGroup(WebSocket conn)
+        {
             connectionGroup cG = FastLookTable.get(conn);
             if(cG==null)return;
             connectionGroup.WebSocketMember WSM = cG.contains(conn);
@@ -290,15 +289,26 @@ public class WebSService extends Service {
         }
 
         @Override
-        public void onError(WebSocket conn, Exception ex) {
+        public void onClose(WebSocket conn, int code, String reason, boolean remote) {
 
+            removeWebSocketFromGroup( conn);
+        }
+
+        @Override
+        public void onError(WebSocket conn, Exception ex) {
+            removeWebSocketFromGroup( conn);
+           // conn.close(-1);
             //conn.close(100);
         }
 
         @Override
         public void onMessage(WebSocket conn, String message) {//@XXXX@data
             connectionGroup cG = FastLookTable.get(conn);
-            if(cG==null)return;
+            if(cG==null){
+
+                conn.close(-1);
+                return;
+            }
             if (message.charAt(0) == '>') {
                 if (message.startsWith(">ajax")) {
                     new ThreadAjax(cG, message).start();
