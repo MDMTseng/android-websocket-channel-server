@@ -5,24 +5,24 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.support.v7.app.ActionBarActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-
-import org.java_websocket.WebSocket;
-
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.Collection;
+import android.widget.EditText;
 
 
 public class MainActivity extends ActionBarActivity implements View.OnClickListener {
+    int serverPort = 9999;
+    ActionBarActivity mainAct = this;
+    String serverPortRefKey = "serverPort";
+    EditText editT_port = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,7 +33,14 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
         Button stopService = (Button) findViewById(R.id.btn_wsstop);
         startService.setOnClickListener(this);
         stopService.setOnClickListener(this);
-
+        SharedPreferences sharedPref = this.getPreferences(Context.MODE_PRIVATE);
+        serverPort = 9999;
+        try {
+            serverPort = sharedPref.getInt(serverPortRefKey, 9999);
+        } catch (Exception e) {
+        }
+        editT_port = (EditText) findViewById(R.id.editText_port);
+        editT_port.setText(serverPort + "");
         startService();
     }
 
@@ -55,39 +62,55 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
         return super.onOptionsItemSelected(item);
     }
 
-    private WebSService.MyBinder myBinder=null;
+    private WebSService.MyBinder myBinder = null;
     private ServiceConnection connection = new ServiceConnection() {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            myBinder=null;
+            myBinder = null;
         }
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
+
             myBinder = (WebSService.MyBinder) service;
-            myBinder.startDownload();
+            serverPort = Integer.parseInt(editT_port.getText().toString());
+            myBinder.startServer(serverPort);
+
+            SharedPreferences sharedPref = mainAct.getPreferences(Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPref.edit();
+            editor.putInt(serverPortRefKey, serverPort);
+            editor.commit();
+            Log.v("onServiceConnected", "port::" + serverPort);
         }
     };
-    void startService()
-    {
-        Intent startIntent=getRunningServiceInternt( WebSService.class);
-        if(startIntent==null) {
+
+    void startService() {
+        Intent startIntent = getRunningServiceInternt(WebSService.class);
+        if (startIntent == null) {
             startIntent = new Intent(this, WebSService.class);
             startService(startIntent);
         }
-        if(myBinder==null)
+        // if(myBinder==null)
         bindService(startIntent, connection, BIND_AUTO_CREATE);
     }
-    void stopService()
-    {
-        Intent stopIntent=getRunningServiceInternt( WebSService.class);
-        if(stopIntent!=null) {
 
-            if(myBinder!=null)
+    void stopService() {
+        try {
+            if (myBinder != null)
                 unbindService(connection);
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        }
+        Intent stopIntent = getRunningServiceInternt(WebSService.class);
+        if (stopIntent != null) {
+
             stopIntent = new Intent(this, WebSService.class);
-            stopService(stopIntent);
+            try {
+                stopService(stopIntent);
+            } catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -96,11 +119,12 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
             if (serviceClass.getName().equals(service.service.getClassName())) {
-                return  new Intent(this,serviceClass);
+                return new Intent(this, serviceClass);
             }
         }
         return null;
     }
+
     @Override
     public void onClick(View v) {
         switch (v.getId()) {
@@ -114,9 +138,6 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
                 break;
         }
     }
-
-
-
 
 
 }
